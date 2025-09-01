@@ -8,6 +8,8 @@ pub use graphene_core::{ProtoNodeIdentifier, Type, TypeDescriptor, concrete, gen
 pub mod document;
 pub mod graphene_compiler;
 pub mod proto;
+pub mod typecheck;
+
 #[cfg(feature = "loading")]
 pub mod util;
 pub mod wasm_application_io;
