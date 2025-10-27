@@ -1,8 +1,9 @@
 mod context;
-pub mod texture_upload;
+pub mod shader_runtime;
+pub mod texture_conversion;
 
+use crate::shader_runtime::ShaderRuntime;
 use anyhow::Result;
-pub use context::Context;
 use dyn_any::StaticType;
 use futures::lock::Mutex;
 use glam::UVec2;
@@ -14,10 +15,16 @@ use vello::{AaConfig, AaSupport, RenderParams, Renderer, RendererOptions, Scene}
 use wgpu::util::TextureBlitter;
 use wgpu::{Origin3d, SurfaceConfiguration, TextureAspect};
 
+pub use context::Context as WgpuContext;
+pub use context::ContextBuilder as WgpuContextBuilder;
+pub use wgpu::Backends as WgpuBackends;
+pub use wgpu::Features as WgpuFeatures;
+
 #[derive(dyn_any::DynAny)]
 pub struct WgpuExecutor {
-	pub context: Context,
+	pub context: WgpuContext,
 	vello_renderer: Mutex<Renderer>,
+	pub shader_runtime: ShaderRuntime,
 }
 
 impl std::fmt::Debug for WgpuExecutor {
@@ -50,7 +57,7 @@ pub struct TargetTexture {
 #[cfg(target_family = "wasm")]
 pub type Window = web_sys::HtmlCanvasElement;
 #[cfg(not(target_family = "wasm"))]
-pub type Window = Arc<winit::window::Window>;
+pub type Window = Arc<dyn winit::window::Window>;
 
 unsafe impl StaticType for Surface {
 	type Static = Surface;
@@ -101,6 +108,7 @@ impl WgpuExecutor {
 	}
 
 	async fn render_vello_scene_to_target_texture(&self, scene: &Scene, size: UVec2, context: &RenderContext, background: Color, output: &mut Option<TargetTexture>) -> Result<()> {
+		let size = size.max(UVec2::ONE);
 		let target_texture = if let Some(target_texture) = output
 			&& target_texture.size == size
 		{
@@ -116,7 +124,7 @@ impl WgpuExecutor {
 				mip_level_count: 1,
 				sample_count: 1,
 				dimension: wgpu::TextureDimension::D2,
-				usage: wgpu::TextureUsages::STORAGE_BINDING | wgpu::TextureUsages::TEXTURE_BINDING,
+				usage: wgpu::TextureUsages::STORAGE_BINDING | wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_SRC,
 				format: VELLO_SURFACE_FORMAT,
 				view_formats: &[],
 			});
@@ -178,10 +186,10 @@ impl WgpuExecutor {
 
 impl WgpuExecutor {
 	pub async fn new() -> Option<Self> {
-		Self::with_context(Context::new().await?)
+		Self::with_context(WgpuContext::new().await?)
 	}
 
-	pub fn with_context(context: Context) -> Option<Self> {
+	pub fn with_context(context: WgpuContext) -> Option<Self> {
 		let vello_renderer = Renderer::new(
 			&context.device,
 			RendererOptions {
@@ -195,6 +203,7 @@ impl WgpuExecutor {
 		.ok()?;
 
 		Some(Self {
+			shader_runtime: ShaderRuntime::new(&context),
 			context,
 			vello_renderer: vello_renderer.into(),
 		})

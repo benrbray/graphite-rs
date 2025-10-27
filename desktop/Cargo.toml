@@ -18,7 +18,7 @@ gpu = ["graphite-desktop-wrapper/gpu"]
 accelerated_paint = ["accelerated_paint_dmabuf", "accelerated_paint_d3d11", "accelerated_paint_iosurface"]
 accelerated_paint_dmabuf = ["libc", "ash"]
 accelerated_paint_d3d11 = ["windows", "ash"]
-accelerated_paint_iosurface = ["objc2-io-surface", "objc2-metal", "core-foundation"]
+accelerated_paint_iosurface = ["metal", "objc", "core-foundation"]
 
 [dependencies]
 # Local dependencies
@@ -26,7 +26,7 @@ graphite-desktop-wrapper = { path = "wrapper" }
 graphite-desktop-embedded-resources = { path = "embedded-resources", optional = true }
 
 wgpu = { workspace = true }
-winit = { workspace = true, features = ["serde"] }
+winit = { workspace = true, features = [ "wayland-csd-adwaita-notitlebar", "serde" ] }
 thiserror = { workspace = true }
 futures = { workspace = true }
 cef = { workspace = true }
@@ -34,32 +34,41 @@ cef-dll-sys = { workspace = true }
 tracing-subscriber = { workspace = true }
 tracing = { workspace = true }
 dirs = { workspace = true }
-ron = { workspace = true}
+ron = { workspace = true }
 bytemuck = { workspace = true }
 glam = { workspace = true }
 vello = { workspace = true }
 derivative = { workspace = true }
 rfd = { workspace = true }
 open = { workspace = true }
+rand = { workspace = true, features = ["thread_rng"] }
+serde = { workspace = true }
+clap = { workspace = true, features = ["derive"] }
 
 # Hardware acceleration dependencies
 ash = { version = "0.38", optional = true }
 
 # Windows-specific dependencies
-[target.'cfg(windows)'.dependencies]
-windows = { version = "0.58", features = [
+[target.'cfg(target_os = "windows")'.dependencies]
+windows = { version = "0.58.0", features = [
+	"Win32_Foundation",
 	"Win32_Graphics_Direct3D11",
 	"Win32_Graphics_Direct3D12",
 	"Win32_Graphics_Dxgi",
 	"Win32_Graphics_Dxgi_Common",
-	"Win32_Foundation"
+	"Win32_Graphics_Dwm",
+	"Win32_Graphics_Gdi",
+	"Win32_System_LibraryLoader",
+	"Win32_UI_Controls",
+	"Win32_UI_WindowsAndMessaging",
+	"Win32_UI_HiDpi",
 ], optional = true }
 
 # macOS-specific dependencies
 [target.'cfg(target_os = "macos")'.dependencies]
-objc2-io-surface = { version = "0.3", optional = true }
-objc2-metal = { version = "0.3", optional = true }
-core-foundation = { version = "0.9", optional = true }
+metal = { version = "0.31.0", optional = true }
+objc = { version = "0.2", optional = true }
+core-foundation = { version = "0.10", optional = true }
 
 # Linux-specific dependencies
 [target.'cfg(target_os = "linux")'.dependencies]

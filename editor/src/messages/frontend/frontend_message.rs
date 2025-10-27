@@ -1,4 +1,4 @@
-use super::utility_types::{FrontendDocumentDetails, MouseCursorIcon};
+use super::utility_types::{DocumentDetails, MouseCursorIcon, OpenDocument};
 use crate::messages::app_window::app_window_message_handler::AppWindowPlatform;
 use crate::messages::layout::utility_types::widget_prelude::*;
 use crate::messages::portfolio::document::node_graph::utility_types::{
@@ -90,16 +90,19 @@ pub enum FrontendMessage {
 		font: Font,
 	},
 	TriggerImport,
-	TriggerIndexedDbRemoveDocument {
+	TriggerPersistenceRemoveDocument {
 		#[serde(rename = "documentId")]
 		document_id: DocumentId,
 	},
-	TriggerIndexedDbWriteDocument {
+	TriggerPersistenceWriteDocument {
+		#[serde(rename = "documentId")]
+		document_id: DocumentId,
 		document: String,
-		details: FrontendDocumentDetails,
+		details: DocumentDetails,
 	},
 	TriggerLoadFirstAutoSaveDocument,
 	TriggerLoadRestAutoSaveDocuments,
+	TriggerOpenLaunchDocuments,
 	TriggerLoadPreferences,
 	TriggerOpenDocument,
 	TriggerPaste,
@@ -118,6 +121,8 @@ pub enum FrontendMessage {
 	TriggerVisitLink {
 		url: String,
 	},
+	TriggerMinimizeWindow,
+	TriggerMaximizeWindow,
 
 	// Update prefix: give the frontend a new value or state for it to use
 	UpdateActiveDocument {
@@ -308,7 +313,7 @@ pub enum FrontendMessage {
 	},
 	UpdateOpenDocumentsList {
 		#[serde(rename = "openDocuments")]
-		open_documents: Vec<FrontendDocumentDetails>,
+		open_documents: Vec<OpenDocument>,
 	},
 	UpdatePropertiesPanelLayout {
 		#[serde(rename = "layoutTarget")]
@@ -337,10 +342,10 @@ pub enum FrontendMessage {
 	UpdatePlatform {
 		platform: AppWindowPlatform,
 	},
-	UpdateWindowState {
+	UpdateMaximized {
 		maximized: bool,
-		minimized: bool,
 	},
+	DragWindow,
 	CloseWindow,
 	UpdateViewportHolePunch {
 		active: bool,

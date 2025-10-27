@@ -1,5 +1,4 @@
-use std::sync::Arc;
-use winit::window::Window;
+use crate::window::Window;
 
 use graphite_desktop_wrapper::{Color, WgpuContext, WgpuExecutor};
 
@@ -24,10 +23,9 @@ pub(crate) struct GraphicsState {
 }
 
 impl GraphicsState {
-	pub(crate) fn new(window: Arc<Window>, context: WgpuContext) -> Self {
-		let size = window.inner_size();
-
-		let surface = context.instance.create_surface(window).unwrap();
+	pub(crate) fn new(window: &Window, context: WgpuContext) -> Self {
+		let size = window.surface_size();
+		let surface = window.create_surface(context.instance.clone());
 
 		let surface_caps = surface.get_capabilities(&context.adapter);
 		let surface_format = surface_caps.formats.iter().find(|f| f.is_srgb()).copied().unwrap_or(surface_caps.formats[0]);

@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use graphite_editor::messages::prelude::FrontendMessage;
 
 use super::DesktopWrapperMessageDispatcher;
-use super::messages::{DesktopFrontendMessage, FileFilter, OpenFileDialogContext, SaveFileDialogContext};
+use super::messages::{DesktopFrontendMessage, Document, FileFilter, OpenFileDialogContext, SaveFileDialogContext};
 
 pub(super) fn intercept_frontend_message(dispatcher: &mut DesktopWrapperMessageDispatcher, message: FrontendMessage) -> Option<FrontendMessage> {
 	match message {
@@ -64,14 +64,60 @@ pub(super) fn intercept_frontend_message(dispatcher: &mut DesktopWrapperMessageD
 		FrontendMessage::TriggerVisitLink { url } => {
 			dispatcher.respond(DesktopFrontendMessage::OpenUrl(url));
 		}
-		FrontendMessage::UpdateWindowState { maximized, minimized } => {
-			dispatcher.respond(DesktopFrontendMessage::UpdateWindowState { maximized, minimized });
-
-			// Forward this to update the ui
-			return Some(message);
+		FrontendMessage::DragWindow => {
+			dispatcher.respond(DesktopFrontendMessage::DragWindow);
 		}
 		FrontendMessage::CloseWindow => {
 			dispatcher.respond(DesktopFrontendMessage::CloseWindow);
+		}
+		FrontendMessage::TriggerMinimizeWindow => {
+			dispatcher.respond(DesktopFrontendMessage::MinimizeWindow);
+		}
+		FrontendMessage::TriggerMaximizeWindow => {
+			dispatcher.respond(DesktopFrontendMessage::MaximizeWindow);
+		}
+		FrontendMessage::TriggerPersistenceWriteDocument { document_id, document, details } => {
+			dispatcher.respond(DesktopFrontendMessage::PersistenceWriteDocument {
+				id: document_id,
+				document: Document {
+					name: details.name,
+					path: details.path,
+					content: document,
+					is_saved: details.is_saved,
+				},
+			});
+		}
+		FrontendMessage::TriggerPersistenceRemoveDocument { document_id } => {
+			dispatcher.respond(DesktopFrontendMessage::PersistenceDeleteDocument { id: document_id });
+		}
+		FrontendMessage::UpdateActiveDocument { document_id } => {
+			dispatcher.respond(DesktopFrontendMessage::PersistenceUpdateCurrentDocument { id: document_id });
+
+			// Forward this to update the UI
+			return Some(FrontendMessage::UpdateActiveDocument { document_id });
+		}
+		FrontendMessage::UpdateOpenDocumentsList { open_documents } => {
+			dispatcher.respond(DesktopFrontendMessage::PersistenceUpdateDocumentsList {
+				ids: open_documents.iter().map(|document| document.id).collect(),
+			});
+
+			// Forward this to update the UI
+			return Some(FrontendMessage::UpdateOpenDocumentsList { open_documents });
+		}
+		FrontendMessage::TriggerLoadFirstAutoSaveDocument => {
+			dispatcher.respond(DesktopFrontendMessage::PersistenceLoadCurrentDocument);
+		}
+		FrontendMessage::TriggerLoadRestAutoSaveDocuments => {
+			dispatcher.respond(DesktopFrontendMessage::PersistenceLoadRemainingDocuments);
+		}
+		FrontendMessage::TriggerOpenLaunchDocuments => {
+			dispatcher.respond(DesktopFrontendMessage::OpenLaunchDocuments);
+		}
+		FrontendMessage::TriggerSavePreferences { preferences } => {
+			dispatcher.respond(DesktopFrontendMessage::PersistenceWritePreferences { preferences });
+		}
+		FrontendMessage::TriggerLoadPreferences => {
+			dispatcher.respond(DesktopFrontendMessage::PersistenceLoadPreferences);
 		}
 		m => return Some(m),
 	}

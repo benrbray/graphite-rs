@@ -36,7 +36,7 @@
 
 	export let tabMinWidths = false;
 	export let tabCloseButtons = false;
-	export let tabLabels: { name: string; tooltip?: string }[];
+	export let tabLabels: { name: string; unsaved?: boolean; tooltip?: string }[];
 	export let tabActiveIndex: number;
 	export let panelType: PanelType | undefined = undefined;
 	export let clickAction: ((index: number) => void) | undefined = undefined;
@@ -130,7 +130,12 @@
 					}}
 					bind:this={tabElements[tabIndex]}
 				>
-					<TextLabel>{tabLabel.name}</TextLabel>
+					<LayoutRow class="name">
+						<TextLabel class="text">{tabLabel.name}</TextLabel>
+						{#if tabLabel.unsaved}
+							<TextLabel>*</TextLabel>
+						{/if}
+					</LayoutRow>
 					{#if tabCloseButtons}
 						<IconButton
 							action={(e) => {
@@ -154,40 +159,54 @@
 			<svelte:component this={PANEL_COMPONENTS[panelType]} />
 		{:else}
 			<LayoutCol class="empty-panel" on:dragover={(e) => e.preventDefault()} on:drop={dropFile}>
-				<LayoutCol class="content">
-					<LayoutRow class="logotype">
-						<IconLabel icon="GraphiteLogotypeSolid" />
-					</LayoutRow>
-					<LayoutRow class="actions">
-						<table>
-							<tr>
-								<td>
-									<TextButton label="New Document" icon="File" flush={true} action={() => editor.handle.newDocumentDialog()} />
-								</td>
-								<td>
-									<UserInputLabel keysWithLabelsGroups={[[...platformModifiers(true), { key: "KeyN", label: "N" }]]} />
-								</td>
-							</tr>
-							<tr>
-								<td>
-									<TextButton label="Open Document" icon="Folder" flush={true} action={() => editor.handle.openDocument()} />
-								</td>
-								<td>
-									<UserInputLabel keysWithLabelsGroups={[[...platformModifiers(false), { key: "KeyO", label: "O" }]]} />
-								</td>
-							</tr>
-							<tr>
-								<td colspan="2">
-									<TextButton label="Open Demo Artwork" icon="Image" flush={true} action={() => editor.handle.demoArtworkDialog()} />
-								</td>
-							</tr>
-							<tr>
-								<td colspan="2">
-									<TextButton label="Support the Development Fund" icon="Heart" flush={true} action={() => editor.handle.visitUrl("https://graphite.rs/donate/")} />
-								</td>
-							</tr>
-						</table>
-					</LayoutRow>
+				<LayoutCol class="top-spacer"></LayoutCol>
+				<LayoutCol class="content-container">
+					<LayoutCol class="content">
+						<LayoutRow class="logotype">
+							<IconLabel icon="GraphiteLogotypeSolid" />
+						</LayoutRow>
+						<LayoutRow class="actions">
+							<table>
+								<tbody>
+									<tr>
+										<td>
+											<TextButton label="New Document" icon="File" flush={true} action={() => editor.handle.newDocumentDialog()} />
+										</td>
+										<td>
+											<UserInputLabel keysWithLabelsGroups={[[...platformModifiers(true), { key: "KeyN", label: "N" }]]} />
+										</td>
+									</tr>
+									<tr>
+										<td>
+											<TextButton label="Open Document" icon="Folder" flush={true} action={() => editor.handle.openDocument()} />
+										</td>
+										<td>
+											<UserInputLabel keysWithLabelsGroups={[[...platformModifiers(false), { key: "KeyO", label: "O" }]]} />
+										</td>
+									</tr>
+									<tr>
+										<td colspan="2">
+											<TextButton label="Open Demo Artwork" icon="Image" flush={true} action={() => editor.handle.demoArtworkDialog()} />
+										</td>
+									</tr>
+									<tr>
+										<td colspan="2">
+											<TextButton label="Support the Development Fund" icon="Heart" flush={true} action={() => editor.handle.visitUrl("https://graphite.rs/donate/")} />
+										</td>
+									</tr>
+								</tbody>
+							</table>
+						</LayoutRow>
+					</LayoutCol>
+				</LayoutCol>
+				<LayoutCol class="bottom-message">
+					{#if new Date().getFullYear() === 2025}
+						<TextLabel italic={true} disabled={true}>
+							September 2025 release — <a href="https://youtube.com/watch?v=Vl5BA4g3QXM" target="_blank">What's new? (video)</a>
+							— Note: some older documents may render differently and require manual fixes.
+							<a href="https://ec6796b4.graphite-editor.pages.dev/" target="_blank">Need the old version?</a>
+						</TextLabel>
+					{/if}
 				</LayoutCol>
 			</LayoutCol>
 		{/if}
@@ -204,6 +223,7 @@
 			height: 28px;
 			min-height: auto;
 			background: var(--color-1-nearblack); // Needed for the viewport hole punch on desktop
+			flex-shrink: 0;
 
 			&.min-widths .tab-group .tab {
 				min-width: 120px;
@@ -258,14 +278,22 @@
 						}
 					}
 
-					.text-label {
+					.name {
 						flex: 1 1 100%;
-						overflow-x: hidden;
-						white-space: nowrap;
-						text-overflow: ellipsis;
-						// Height and line-height required because https://stackoverflow.com/a/21611191/775283
-						height: 28px;
-						line-height: 28px;
+
+						.text-label {
+							// Height and line-height required because https://stackoverflow.com/a/21611191/775283
+							height: 28px;
+							line-height: 28px;
+							flex: 0 0 auto;
+
+							&.text {
+								overflow-x: hidden;
+								white-space: nowrap;
+								text-overflow: ellipsis;
+								flex-shrink: 1;
+							}
+						}
 					}
 
 					.icon-button {
@@ -318,30 +346,53 @@
 				background: var(--color-2-mildblack);
 				margin: 4px;
 				border-radius: 2px;
-				justify-content: center;
+				justify-content: space-between;
 
-				.content {
+				.content-container {
 					flex: 0 0 auto;
-					align-items: center;
+					justify-content: center;
 
-					.logotype {
-						margin-bottom: 40px;
+					.content {
+						flex: 0 0 auto;
+						align-items: center;
 
-						svg {
-							width: auto;
-							height: 120px;
-						}
-					}
+						.logotype {
+							margin-top: 8px;
+							margin-bottom: 40px;
 
-					.actions {
-						table {
-							border-spacing: 8px;
-							margin: -8px;
-
-							td {
-								padding: 0;
+							svg {
+								width: auto;
+								height: 120px;
 							}
 						}
+
+						.actions {
+							margin-bottom: 8px;
+
+							table {
+								border-spacing: 8px;
+								margin: -8px;
+
+								td {
+									padding: 0;
+								}
+							}
+						}
+					}
+				}
+
+				.top-spacer {
+					flex: 0 1 48px;
+				}
+
+				.bottom-message {
+					flex: 0 0 48px;
+					align-items: center;
+					justify-content: end;
+
+					.text-label {
+						white-space: wrap;
+						margin: 0 1em;
 					}
 				}
 			}

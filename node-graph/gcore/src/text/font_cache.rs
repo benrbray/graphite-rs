@@ -1,5 +1,7 @@
 use dyn_any::DynAny;
+use parley::fontique::Blob;
 use std::collections::HashMap;
+use std::sync::Arc;
 
 /// A font type (storing font family and font style and an optional preview URL)
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, Hash, PartialEq, Eq, DynAny, specta::Type)]
@@ -20,12 +22,21 @@ impl Default for Font {
 	}
 }
 /// A cache of all loaded font data and preview urls along with the default font (send from `init_app` in `editor_api.rs`)
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, Default, PartialEq, DynAny)]
+#[derive(Clone, serde::Serialize, serde::Deserialize, Default, PartialEq, DynAny)]
 pub struct FontCache {
 	/// Actual font file data used for rendering a font
 	font_file_data: HashMap<Font, Vec<u8>>,
 	/// Web font preview URLs used for showing fonts when live editing
 	preview_urls: HashMap<Font, String>,
+}
+
+impl std::fmt::Debug for FontCache {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		f.debug_struct("FontCache")
+			.field("font_file_data", &self.font_file_data.keys().collect::<Vec<_>>())
+			.field("preview_urls", &self.preview_urls)
+			.finish()
+	}
 }
 
 impl FontCache {
@@ -41,8 +52,13 @@ impl FontCache {
 	}
 
 	/// Try to get the bytes for a font
-	pub fn get(&self, font: &Font) -> Option<&Vec<u8>> {
-		self.resolve_font(font).and_then(|font| self.font_file_data.get(font))
+	pub fn get<'a>(&'a self, font: &'a Font) -> Option<(&'a Vec<u8>, &'a Font)> {
+		self.resolve_font(font).and_then(|font| self.font_file_data.get(font).map(|data| (data, font)))
+	}
+
+	/// Get font data as a Blob for use with parley/skrifa
+	pub fn get_blob<'a>(&'a self, font: &'a Font) -> Option<(Blob<u8>, &'a Font)> {
+		self.get(font).map(|(data, font)| (Blob::new(Arc::new(data.clone())), font))
 	}
 
 	/// Check if the font is already loaded

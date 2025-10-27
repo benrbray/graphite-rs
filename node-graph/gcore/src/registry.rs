@@ -1,4 +1,4 @@
-use crate::{Node, NodeIO, NodeIOTypes, ProtoNodeIdentifier, Type, WasmNotSend};
+use crate::{ContextFeature, Node, NodeIO, NodeIOTypes, ProtoNodeIdentifier, Type, WasmNotSend};
 use dyn_any::{DynAny, StaticType};
 use std::collections::HashMap;
 use std::marker::PhantomData;
@@ -9,13 +9,14 @@ use std::sync::{LazyLock, Mutex};
 pub use graphene_core_shaders::registry::types;
 
 // Translation struct between macro and definition
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct NodeMetadata {
 	pub display_name: &'static str,
 	pub category: Option<&'static str>,
 	pub fields: Vec<FieldMetadata>,
 	pub description: &'static str,
 	pub properties: Option<&'static str>,
+	pub context_features: Vec<ContextFeature>,
 }
 
 // Translation struct between macro and definition

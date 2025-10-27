@@ -338,7 +338,7 @@ async fn wrap_graphic<T: Into<Graphic> + 'n>(
 
 /// Converts a table of graphical content into a graphic table by placing it into an element of a new wrapper graphic table.
 /// If it is already a graphic table, it is not wrapped again. Use the 'Wrap Graphic' node if wrapping is always desired.
-#[node_macro::node(category("Type Conversion"))]
+#[node_macro::node(category("General"))]
 async fn to_graphic<T: Into<Table<Graphic>> + 'n>(
 	_: impl Ctx,
 	#[implementations(
@@ -354,6 +354,7 @@ async fn to_graphic<T: Into<Table<Graphic>> + 'n>(
 	content.into()
 }
 
+/// Removes a level of nesting from a graphic table, or all nesting if "Fully Flatten" is enabled.
 #[node_macro::node(category("General"))]
 async fn flatten_graphic(_: impl Ctx, content: Table<Graphic>, fully_flatten: bool) -> Table<Graphic> {
 	// TODO: Avoid mutable reference, instead return a new Table<Graphic>?
@@ -393,6 +394,7 @@ async fn flatten_graphic(_: impl Ctx, content: Table<Graphic>, fully_flatten: bo
 	output
 }
 
+/// Converts a graphic table into a vector table by deeply flattening any vector content it contains, and discarding any non-vector content.
 #[node_macro::node(category("Vector"))]
 async fn flatten_vector(_: impl Ctx, content: Table<Graphic>) -> Table<Vector> {
 	// TODO: Avoid mutable reference, instead return a new Table<Graphic>?
@@ -507,15 +509,34 @@ pub fn migrate_graphic<'de, D: serde::Deserializer<'de>>(deserializer: D) -> Res
 		elements: Vec<(Graphic, Option<NodeId>)>,
 	}
 
+	#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+	pub struct OlderTable<T> {
+		id: Vec<u64>,
+		#[serde(alias = "instances", alias = "instance")]
+		element: Vec<T>,
+	}
+
+	#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+	pub struct OldTable<T> {
+		id: Vec<u64>,
+		#[serde(alias = "instances", alias = "instance")]
+		element: Vec<T>,
+		transform: Vec<DAffine2>,
+		alpha_blending: Vec<AlphaBlending>,
+	}
+
 	#[derive(serde::Serialize, serde::Deserialize)]
 	#[serde(untagged)]
-	enum EitherFormat {
+	enum GraphicFormat {
 		OldGraphicGroup(OldGraphicGroup),
+		OlderTableOldGraphicGroup(OlderTable<OldGraphicGroup>),
+		OldTableOldGraphicGroup(OldTable<OldGraphicGroup>),
+		OldTableGraphicGroup(OldTable<GraphicGroup>),
 		Table(serde_json::Value),
 	}
 
-	Ok(match EitherFormat::deserialize(deserializer)? {
-		EitherFormat::OldGraphicGroup(old) => {
+	Ok(match GraphicFormat::deserialize(deserializer)? {
+		GraphicFormat::OldGraphicGroup(old) => {
 			let mut graphic_table = Table::new();
 			for (graphic, source_node_id) in old.elements {
 				graphic_table.push(TableRow {
@@ -527,7 +548,43 @@ pub fn migrate_graphic<'de, D: serde::Deserializer<'de>>(deserializer: D) -> Res
 			}
 			graphic_table
 		}
-		EitherFormat::Table(value) => {
+		GraphicFormat::OlderTableOldGraphicGroup(old) => old
+			.element
+			.into_iter()
+			.flat_map(|element| {
+				element.elements.into_iter().map(move |(graphic, source_node_id)| TableRow {
+					element: graphic,
+					transform: element.transform,
+					alpha_blending: element.alpha_blending,
+					source_node_id,
+				})
+			})
+			.collect(),
+		GraphicFormat::OldTableOldGraphicGroup(old) => old
+			.element
+			.into_iter()
+			.flat_map(|element| {
+				element.elements.into_iter().map(move |(graphic, source_node_id)| TableRow {
+					element: graphic,
+					transform: element.transform,
+					alpha_blending: element.alpha_blending,
+					source_node_id,
+				})
+			})
+			.collect(),
+		GraphicFormat::OldTableGraphicGroup(old) => old
+			.element
+			.into_iter()
+			.flat_map(|element| {
+				element.elements.into_iter().map(move |(graphic, source_node_id)| TableRow {
+					element: graphic,
+					transform: Default::default(),
+					alpha_blending: Default::default(),
+					source_node_id,
+				})
+			})
+			.collect(),
+		GraphicFormat::Table(value) => {
 			// Try to deserialize as either table format
 			if let Ok(old_table) = serde_json::from_value::<Table<GraphicGroup>>(value.clone()) {
 				let mut graphic_table = Table::new();

@@ -307,13 +307,6 @@ impl EditorHandle {
 		}
 	}
 
-	/// Minimizes the application window to the taskbar or dock
-	#[wasm_bindgen(js_name = appWindowMinimize)]
-	pub fn app_window_minimize(&self) {
-		let message = AppWindowMessage::AppWindowMinimize;
-		self.dispatch(message);
-	}
-
 	#[wasm_bindgen(js_name = addPrimaryImport)]
 	pub fn add_primary_import(&self) {
 		self.dispatch(DocumentMessage::AddTransaction);
@@ -338,6 +331,13 @@ impl EditorHandle {
 		self.dispatch(NodeGraphMessage::AddSecondaryExport);
 	}
 
+	/// Minimizes the application window to the taskbar or dock
+	#[wasm_bindgen(js_name = appWindowMinimize)]
+	pub fn app_window_minimize(&self) {
+		let message = AppWindowMessage::AppWindowMinimize;
+		self.dispatch(message);
+	}
+
 	/// Toggles minimizing or restoring down the application window
 	#[wasm_bindgen(js_name = appWindowMaximize)]
 	pub fn app_window_maximize(&self) {
@@ -349,6 +349,13 @@ impl EditorHandle {
 	#[wasm_bindgen(js_name = appWindowClose)]
 	pub fn app_window_close(&self) {
 		let message = AppWindowMessage::AppWindowClose;
+		self.dispatch(message);
+	}
+
+	/// Drag the application window
+	#[wasm_bindgen(js_name = appWindowDrag)]
+	pub fn app_window_start_drag(&self) {
+		let message = AppWindowMessage::AppWindowDrag;
 		self.dispatch(message);
 	}
 
@@ -414,9 +421,18 @@ impl EditorHandle {
 	}
 
 	#[wasm_bindgen(js_name = loadPreferences)]
-	pub fn load_preferences(&self, preferences: String) {
-		let message = PreferencesMessage::Load { preferences };
+	pub fn load_preferences(&self, preferences: Option<String>) {
+		let preferences = if let Some(preferences) = preferences {
+			let Ok(preferences) = serde_json::from_str(&preferences) else {
+				log::error!("Failed to deserialize preferences");
+				return;
+			};
+			Some(preferences)
+		} else {
+			None
+		};
 
+		let message = PreferencesMessage::Load { preferences };
 		self.dispatch(message);
 	}
 
@@ -466,6 +482,7 @@ impl EditorHandle {
 			document_is_saved,
 			document_serialized_content,
 			to_front,
+			select_after_open: false,
 		};
 		self.dispatch(message);
 	}

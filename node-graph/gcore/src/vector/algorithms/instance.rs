@@ -2,13 +2,24 @@ use crate::gradient::GradientStops;
 use crate::raster_types::{CPU, Raster};
 use crate::table::{Table, TableRowRef};
 use crate::vector::Vector;
-use crate::{CloneVarArgs, Context, Ctx, ExtractAll, ExtractIndex, ExtractVarArgs, Graphic, OwnedContextImpl};
+use crate::{CloneVarArgs, Context, Ctx, ExtractAll, ExtractIndex, ExtractVarArgs, Graphic, InjectVarArgs, OwnedContextImpl};
 use glam::DVec2;
 use graphene_core_shaders::color::Color;
 
+#[repr(transparent)]
+#[derive(dyn_any::DynAny)]
+struct HashableDVec2(DVec2);
+
+impl std::hash::Hash for HashableDVec2 {
+	fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+		self.0.x.to_bits().hash(state);
+		self.0.y.to_bits().hash(state);
+	}
+}
+
 #[node_macro::node(name("Instance on Points"), category("Instancing"), path(graphene_core::vector))]
 async fn instance_on_points<T: Into<Graphic> + Default + Send + Clone + 'static>(
-	ctx: impl ExtractAll + CloneVarArgs + Sync + Ctx,
+	ctx: impl ExtractAll + CloneVarArgs + Sync + Ctx + InjectVarArgs,
 	points: Table<Vector>,
 	#[implementations(
 		Context -> Table<Graphic>,
@@ -26,7 +37,7 @@ async fn instance_on_points<T: Into<Graphic> + Default + Send + Clone + 'static>
 		let mut iteration = async |index, point| {
 			let transformed_point = transform.transform_point2(point);
 
-			let new_ctx = OwnedContextImpl::from(ctx.clone()).with_index(index).with_vararg(Box::new(transformed_point));
+			let new_ctx = OwnedContextImpl::from(ctx.clone()).with_index(index).with_vararg(Box::new(HashableDVec2(transformed_point)));
 			let generated_instance = instance.eval(new_ctx.into_context()).await;
 
 			for mut generated_row in generated_instance.into_iter() {
@@ -84,20 +95,27 @@ async fn instance_repeat<T: Into<Graphic> + Default + Send + Clone + 'static>(
 
 #[node_macro::node(category("Instancing"), path(graphene_core::vector))]
 async fn instance_position(ctx: impl Ctx + ExtractVarArgs) -> DVec2 {
-	match ctx.vararg(0).map(|dynamic| dynamic.downcast_ref::<DVec2>()) {
-		Ok(Some(position)) => return *position,
+	match ctx.vararg(0).map(|dynamic| dynamic.downcast_ref::<HashableDVec2>()) {
+		Ok(Some(position)) => return position.0,
 		Ok(_) => warn!("Extracted value of incorrect type"),
 		Err(e) => warn!("Cannot extract position vararg: {e:?}"),
 	}
 	Default::default()
 }
 
-// TODO: Make this return a u32 instead of an f64, but we ned to improve math-related compatibility with integer types first.
+// TODO: Return u32, u64, or usize instead of f64 after #1621 is resolved and has allowed us to implement automatic type conversion in the node graph for nodes with generic type inputs.
+// TODO: (Currently automatic type conversion only works for concrete types, via the Graphene preprocessor and not the full Graphene type system.)
 #[node_macro::node(category("Instancing"), path(graphene_core::vector))]
 async fn instance_index(ctx: impl Ctx + ExtractIndex, _primary: (), loop_level: u32) -> f64 {
-	ctx.try_index()
-		.and_then(|indexes| indexes.get(indexes.len().wrapping_sub(1).wrapping_sub(loop_level as usize)).copied())
-		.unwrap_or_default() as f64
+	let Some(index_iter) = ctx.try_index() else { return 0. };
+	let mut last = 0;
+	for (i, index) in index_iter.enumerate() {
+		if i == loop_level as usize {
+			return index as f64;
+		}
+		last = index;
+	}
+	last as f64
 }
 
 #[cfg(test)]

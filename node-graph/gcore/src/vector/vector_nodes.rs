@@ -241,9 +241,8 @@ async fn repeat<I: 'n + Send + Clone>(
 #[node_macro::node(category("Instancing"), path(graphene_core::vector))]
 async fn circular_repeat<I: 'n + Send + Clone>(
 	_: impl Ctx,
-	// TODO: Implement other graphical types.
 	#[implementations(Table<Graphic>, Table<Vector>, Table<Raster<CPU>>, Table<Color>, Table<GradientStops>)] instance: Table<I>,
-	angle_offset: Angle,
+	start_angle: Angle,
 	#[unit(" px")]
 	#[default(5)]
 	radius: f64,
@@ -254,7 +253,7 @@ async fn circular_repeat<I: 'n + Send + Clone>(
 	let mut result_table = Table::new();
 
 	for index in 0..count {
-		let angle = DAffine2::from_angle((TAU / count as f64) * index as f64 + angle_offset.to_radians());
+		let angle = DAffine2::from_angle((TAU / count as f64) * index as f64 + start_angle.to_radians());
 		let translation = DAffine2::from_translation(radius * DVec2::Y);
 		let transform = angle * translation;
 
@@ -1212,10 +1211,10 @@ async fn position_on_path(
 	let euclidian = !parameterized_distance;
 
 	let mut bezpaths = content
-		.into_iter()
+		.iter()
 		.flat_map(|vector| {
-			let transform = vector.transform;
-			vector.element.stroke_bezpath_iter().map(|bezpath| (bezpath, transform)).collect::<Vec<_>>()
+			let transform = *vector.transform;
+			vector.element.stroke_bezpath_iter().map(move |bezpath| (bezpath, transform))
 		})
 		.collect::<Vec<_>>();
 	let bezpath_count = bezpaths.len() as f64;
@@ -1247,14 +1246,16 @@ async fn tangent_on_path(
 	reverse: bool,
 	/// Traverse the path using each segment's Bézier curve parameterization instead of the Euclidean distance. Faster to compute but doesn't respect actual distances.
 	parameterized_distance: bool,
+	/// Whether the resulting angle should be given in as radians instead of degrees.
+	radians: bool,
 ) -> f64 {
 	let euclidian = !parameterized_distance;
 
 	let mut bezpaths = content
-		.into_iter()
+		.iter()
 		.flat_map(|vector| {
-			let transform = vector.transform;
-			vector.element.stroke_bezpath_iter().map(|bezpath| (bezpath, transform)).collect::<Vec<_>>()
+			let transform = *vector.transform;
+			vector.element.stroke_bezpath_iter().map(move |bezpath| (bezpath, transform))
 		})
 		.collect::<Vec<_>>();
 	let bezpath_count = bezpaths.len() as f64;
@@ -1262,7 +1263,7 @@ async fn tangent_on_path(
 	let progress = if reverse { bezpath_count - progress } else { progress };
 	let index = if progress >= bezpath_count { (bezpath_count - 1.) as usize } else { progress as usize };
 
-	bezpaths.get_mut(index).map_or(0., |(bezpath, transform)| {
+	let angle = bezpaths.get_mut(index).map_or(0., |(bezpath, transform)| {
 		let t = if progress == bezpath_count { 1. } else { progress.fract() };
 		let t_value = |t: f64| if euclidian { TValue::Euclidean(t) } else { TValue::Parametric(t) };
 
@@ -1278,7 +1279,9 @@ async fn tangent_on_path(
 		}
 
 		-tangent.angle_to(if reverse { -DVec2::X } else { DVec2::X })
-	})
+	});
+
+	if radians { angle } else { angle.to_degrees() }
 }
 
 #[node_macro::node(category(""), path(graphene_core::vector))]
@@ -1331,6 +1334,14 @@ async fn poisson_disk_points(
 
 #[node_macro::node(category(""), path(graphene_core::vector))]
 async fn subpath_segment_lengths(_: impl Ctx, content: Table<Vector>) -> Vec<f64> {
+	let pathseg_perimeter = |segment: PathSeg| {
+		if is_linear(segment) {
+			Line::new(segment.start(), segment.end()).perimeter(DEFAULT_ACCURACY)
+		} else {
+			segment.perimeter(DEFAULT_ACCURACY)
+		}
+	};
+
 	content
 		.into_iter()
 		.flat_map(|vector| {
@@ -1340,7 +1351,7 @@ async fn subpath_segment_lengths(_: impl Ctx, content: Table<Vector>) -> Vec<f64
 				.stroke_bezpath_iter()
 				.flat_map(|mut bezpath| {
 					bezpath.apply_affine(Affine::new(transform.to_cols_array()));
-					bezpath.segments().map(|segment| segment.perimeter(DEFAULT_ACCURACY)).collect::<Vec<f64>>()
+					bezpath.segments().map(pathseg_perimeter).collect::<Vec<f64>>()
 				})
 				.collect::<Vec<f64>>()
 		})
@@ -1916,9 +1927,11 @@ fn point_inside(_: impl Ctx, source: Table<Vector>, point: DVec2) -> bool {
 	source.into_iter().any(|row| row.element.check_point_inside_shape(row.transform, point))
 }
 
+// TODO: Return u32, u64, or usize instead of f64 after #1621 is resolved and has allowed us to implement automatic type conversion in the node graph for nodes with generic type inputs.
+// TODO: (Currently automatic type conversion only works for concrete types, via the Graphene preprocessor and not the full Graphene type system.)
 #[node_macro::node(category("General"), path(graphene_core::vector))]
-async fn count_elements<I>(_: impl Ctx, #[implementations(Table<Graphic>, Table<Vector>, Table<Raster<CPU>>, Table<Raster<GPU>>, Table<Color>, Table<GradientStops>)] source: Table<I>) -> u64 {
-	source.len() as u64
+async fn count_elements<I>(_: impl Ctx, #[implementations(Table<Graphic>, Table<Vector>, Table<Raster<CPU>>, Table<Raster<GPU>>, Table<Color>, Table<GradientStops>)] source: Table<I>) -> f64 {
+	source.len() as f64
 }
 
 #[node_macro::node(category("Vector: Measure"), path(graphene_core::vector))]

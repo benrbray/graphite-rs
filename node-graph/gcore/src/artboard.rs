@@ -68,13 +68,22 @@ pub fn migrate_artboard<'de, D: serde::Deserializer<'de>>(deserializer: D) -> Re
 
 	#[derive(serde::Serialize, serde::Deserialize)]
 	#[serde(untagged)]
-	enum EitherFormat {
+	enum ArtboardFormat {
 		ArtboardGroup(ArtboardGroup),
+		OldArtboardTable(OldTable<Artboard>),
 		ArtboardTable(Table<Artboard>),
 	}
 
-	Ok(match EitherFormat::deserialize(deserializer)? {
-		EitherFormat::ArtboardGroup(artboard_group) => {
+	#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+	pub struct OldTable<T> {
+		#[serde(alias = "instances", alias = "instance")]
+		element: Vec<T>,
+		transform: Vec<DAffine2>,
+		alpha_blending: Vec<AlphaBlending>,
+	}
+
+	Ok(match ArtboardFormat::deserialize(deserializer)? {
+		ArtboardFormat::ArtboardGroup(artboard_group) => {
 			let mut table = Table::new();
 			for (artboard, source_node_id) in artboard_group.artboards {
 				table.push(TableRow {
@@ -86,10 +95,22 @@ pub fn migrate_artboard<'de, D: serde::Deserializer<'de>>(deserializer: D) -> Re
 			}
 			table
 		}
-		EitherFormat::ArtboardTable(artboard_table) => artboard_table,
+		ArtboardFormat::OldArtboardTable(old_table) => old_table
+			.element
+			.into_iter()
+			.zip(old_table.transform.into_iter().zip(old_table.alpha_blending))
+			.map(|(element, (transform, alpha_blending))| TableRow {
+				element,
+				transform,
+				alpha_blending,
+				source_node_id: None,
+			})
+			.collect(),
+		ArtboardFormat::ArtboardTable(artboard_table) => artboard_table,
 	})
 }
 
+/// Constructs a new single artboard table with the chosen properties.
 #[node_macro::node(category(""))]
 async fn create_artboard<T: Into<Table<Graphic>> + 'n>(
 	ctx: impl ExtractAll + CloneVarArgs + Ctx,

@@ -50,15 +50,15 @@ impl MessageHandler<PreferencesMessage, ()> for PreferencesMessageHandler {
 		match message {
 			// Management messages
 			PreferencesMessage::Load { preferences } => {
-				if let Ok(deserialized_preferences) = serde_json::from_str::<PreferencesMessageHandler>(&preferences) {
-					*self = deserialized_preferences;
-
-					responses.add(PortfolioMessage::EditorPreferences);
-					responses.add(PortfolioMessage::UpdateVelloPreference);
-					responses.add(PreferencesMessage::ModifyLayout {
-						zoom_with_scroll: self.zoom_with_scroll,
-					});
+				if let Some(preferences) = preferences {
+					*self = preferences;
 				}
+
+				responses.add(PortfolioMessage::EditorPreferences);
+				responses.add(PortfolioMessage::UpdateVelloPreference);
+				responses.add(PreferencesMessage::ModifyLayout {
+					zoom_with_scroll: self.zoom_with_scroll,
+				});
 			}
 			PreferencesMessage::ResetToDefaults => {
 				refresh_dialog(responses);
